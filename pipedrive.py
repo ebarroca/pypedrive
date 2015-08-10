@@ -4,89 +4,6 @@ import json
 
 API_ENDPOINT = "https://api.pipedrive.com/v1"
 
-
-class PipedriveClient():
-
-    def __init__(self, api_token):
-        self.api_token = api_token
-        self.endpoint = API_ENDPOINT
-        self.fields = {}
-
-    def get_contact(self, id):
-        res = "persons"
-        (r, contact) = self._fetch_resource_by_id(res, id)
-        return contact
-
-    def get_resource(self, id):
-        res = "persons"
-        (r, resource) = self._fetch_resource_by_id(res, id)
-        return (r, resource)
-
-    def _fetch_resource_by_id(self, resource, id):
-
-        if id is None:
-            raise Exception("Can't fetch, ID given is None.")
-
-        return self._fetch_resource(resource, id)
-
-    def person_search(self, text, email=False):
-        pass
-
-    def _fetch_resource(self, resource, rid=None):
-        url = self._build_url(resource, rid)
-        debug("Fetching resource %s (%s) at %s" % (rid, resource, url))
-        r = requests.get(url)
-        data = r.json()
-
-        if "success" not in data:
-            raise Exception("Bad Response - can't find success key.")
-
-        if not data["success"]:
-            msg = data.get("error", "no error message given")
-            raise Exception("Pipedrive error - %s at %s" % (msg, r.url))
-
-        if "data" not in data:
-            raise Exception("Can't find data object in response: %s" % data)
-
-        return (r, data["data"])
-
-    def load_fields_for_resource(self, resource):
-
-        debug("Loading fields for resource %s" % resource)
-        fields = {}
-        key_to_attr = {}
-        attr_to_key = {}
-
-        (r, fdata) = self._fetch_resource(resource + "Fields")
-
-        for f in fdata:
-            attr = to_snake_case(f["name"])
-            key = f["key"]
-            key_to_attr[key] = attr
-            attr_to_key[attr] = key
-
-        fields["key_to_attr"] = key_to_attr
-        fields["attr_to_key"] = attr_to_key
-        self.fields[resource] = fields
-
-    def update_resource(self, resource, rid, data):
-        url = self._build_url(resource, rid)
-        # XXX todo Validate resource/id/data types
-        debug("Updating resource %s (%s) at %s" % (rid, resource, url))
-        headers = {"Content-Type": "application/json"}
-        r = requests.put(url, data=json.dumps(data), headers=headers)
-        debug("Update status code: %s" % r.status_code)
-        r.raise_for_status()
-        return
-
-    def _build_url(self, resource, rid=None):
-        url = self.endpoint + "/" + resource
-        if rid is not None:
-            url = url + "/" + str(rid)
-        url = url + "?api_token=%s" % (self.api_token)
-        return url
-
-
 class BaseResource(object):
     RESOURCE = "resources"
     RESOURCE_SEGMENT = RESOURCE + "s"
@@ -112,12 +29,22 @@ class BaseResource(object):
 
         if attr in self._data:
             value = self._data[attr]
-            return value
+            ftype = self.field_config[attr]["type"]
+            if ftype in self._client.FIELD_TO_CLASS:
+                print("working on %s" % value)
+                # if type is mappable, map it
+                resource_class = self._client.FIELD_TO_CLASS[ftype]
+                print("type is mappable: %s to %s" % (ftype, resource_class))
+                rid = value["value"]
+                res = resource_class(self._client, rid)
+                return res
+            else:
+                return value
         else:
             raise AttributeError
 
     def __setattr__(self, name, value):
-        #print("Setting %s to %s" % (name, value))
+        # print("Setting %s to %s" % (name, value))
         if "_init_done" not in self.__dict__ or name in self.__dict__:
             # use default setattr
             object.__setattr__(self, name, value)
@@ -176,6 +103,11 @@ class BaseResource(object):
             return []
         return self._client.fields[self._resource]["attr_to_key"]
 
+    @property
+    def field_config(self):
+        if not self.HAS_CUSTOM_FIELDS:
+            return []
+        return self._client.fields[self._resource]["config"]
 
 class Person(BaseResource):
     RESOURCE = "person"
@@ -198,6 +130,19 @@ class Organization(BaseResource):
     HAS_CUSTOM_FIELDS = True
 
 
+class Product(BaseResource):
+    RESOURCE = "product"
+    RESOURCE_SEGMENT = RESOURCE + "s"
+    HAS_CUSTOM_FIELDS = True
+    FIELD_SEGMENT = RESOURCE + "Fields"
+
+
+class User(BaseResource):
+    RESOURCE = "user"
+    RESOURCE_SEGMENT = RESOURCE + "s"
+    HAS_CUSTOM_FIELDS = False
+
+
 class Acivity(BaseResource):
     RESOURCE = "activity"
     RESOURCE_SEGMENT = "activities"
@@ -208,3 +153,106 @@ class Stage(BaseResource):
     RESOURCE = "stage"
     RESOURCE_SEGMENT = RESOURCE + "s"
     HAS_CUSTOM_FIELDS = False
+
+
+class PipedriveClient():
+
+    FIELD_TO_CLASS = {
+         "people": Person,
+         "org": Organization,
+         "stage": Stage,
+         "product": Product
+    }
+
+    def __init__(self, api_token):
+        self.api_token = api_token
+        self.endpoint = API_ENDPOINT
+        self.fields = {}
+
+    def get_contact(self, id):
+        res = "persons"
+        (r, contact) = self._fetch_resource_by_id(res, id)
+        return contact
+
+    def get_resource(self, id):
+        res = "persons"
+        (r, resource) = self._fetch_resource_by_id(res, id)
+        return (r, resource)
+
+    def _fetch_resource_by_id(self, resource, id):
+
+        if id is None:
+            raise Exception("Can't fetch, ID given is None.")
+
+        return self._fetch_resource(resource, id)
+
+    def person_search(self, text, email=False):
+        pass
+
+    def _fetch_resource(self, resource, rid=None):
+        url = self._build_url(resource, rid)
+        debug("Fetching resource %s (%s) at %s" % (rid, resource, url))
+        r = requests.get(url)
+        data = r.json()
+
+        if "success" not in data:
+            raise Exception("Bad Response - can't find success key.")
+
+        if not data["success"]:
+            msg = data.get("error", "no error message given")
+            raise Exception("Pipedrive error - %s at %s" % (msg, r.url))
+
+        if "data" not in data:
+            raise Exception("Can't find data object in response: %s" % data)
+
+        return (r, data["data"])
+
+    def load_fields_for_resource(self, resource):
+
+        debug("Loading fields for resource %s" % resource)
+        fields = {}
+        key_to_attr = {}
+        attr_to_key = {}
+        field_definition = {}
+
+        (r, fdata) = self._fetch_resource(resource + "Fields")
+
+        for f in fdata:
+            key = f["key"]
+            if len(key) == 40:
+                # custom field, use a nicer name
+                attr = to_snake_case(f["name"])
+            else:
+                # not a custom field, use key name
+                attr = key
+            key_to_attr[key] = attr
+            attr_to_key[attr] = key
+            field_definition[key] = {"type": f["field_type"],
+                                      "editable": f["edit_flag"]}
+            if "options" in f:
+                field_definition["options"] = f["options"]
+
+        fields["key_to_attr"] = key_to_attr
+        fields["attr_to_key"] = attr_to_key
+        fields["config"] = field_definition
+        self.fields[resource] = fields
+
+    def update_resource(self, resource, rid, data):
+        url = self._build_url(resource, rid)
+        # XXX todo Validate resource/id/data types
+        debug("Updating resource %s (%s) at %s" % (rid, resource, url))
+        headers = {"Content-Type": "application/json"}
+        r = requests.put(url, data=json.dumps(data), headers=headers)
+        debug("Update status code: %s" % r.status_code)
+        r.raise_for_status()
+        return
+
+    def _build_url(self, resource, rid=None):
+        url = self.endpoint + "/" + resource
+        if rid is not None:
+            url = url + "/" + str(rid)
+        url = url + "?api_token=%s" % (self.api_token)
+        return url
+
+
+
