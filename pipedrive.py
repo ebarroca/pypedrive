@@ -4,6 +4,7 @@ import json
 
 API_ENDPOINT = "https://api.pipedrive.com/v1"
 
+
 class BaseResource(object):
     RESOURCE = "resources"
     RESOURCE_SEGMENT = RESOURCE + "s"
@@ -51,8 +52,9 @@ class BaseResource(object):
         elif name in self.field_names:
             # custom field, let's set it
             attr = self._name_to_attr(name)
-            self._data_cache[attr] = value
-            self._dirty_fields.add(name)
+            if not self._data_cache[attr] == value:
+                self._data_cache[attr] = value
+                self._dirty_fields.add(name)
         else:
             raise AttributeError("Can't set propery: attribute %s \
                                           not found." % (name))
