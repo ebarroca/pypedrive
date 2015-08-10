@@ -111,6 +111,7 @@ class BaseResource(object):
             return []
         return self._client.fields[self._resource]["config"]
 
+
 class Person(BaseResource):
     RESOURCE = "person"
     RESOURCE_SEGMENT = RESOURCE + "s"
@@ -160,10 +161,10 @@ class Stage(BaseResource):
 class PipedriveClient():
 
     FIELD_TO_CLASS = {
-         "people": Person,
-         "org": Organization,
-         "stage": Stage,
-         "product": Product
+        "people": Person,
+        "org": Organization,
+        "stage": Stage,
+        "product": Product
     }
 
     def __init__(self, api_token):
@@ -230,7 +231,7 @@ class PipedriveClient():
             key_to_attr[key] = attr
             attr_to_key[attr] = key
             field_definition[key] = {"type": f["field_type"],
-                                      "editable": f["edit_flag"]}
+                                     "editable": f["edit_flag"]}
             if "options" in f:
                 field_definition["options"] = f["options"]
 
@@ -255,6 +256,3 @@ class PipedriveClient():
             url = url + "/" + str(rid)
         url = url + "?api_token=%s" % (self.api_token)
         return url
-
-
-
