@@ -52,7 +52,9 @@ class BaseResource(object):
         elif name in self.field_names:
             # custom field, let's set it
             attr = self._name_to_attr(name)
-            if not self._data_cache[attr] == value:
+
+            # Set value only if value has actually changed
+            if not str(self._data[attr]) == str(value):
                 self._data_cache[attr] = value
                 self._dirty_fields.add(name)
         else:
