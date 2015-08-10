@@ -11,7 +11,12 @@ class BaseResource(object):
     FIELD_SEGMENT = RESOURCE + "Fields"
     HAS_CUSTOM_FIELDS = False
 
-    def __init__(self, client, id):
+    def __init__(self, client, id, preload=None):
+        """
+        client: pipedrive client instance
+        id: pipedrive resource id
+        preload: set of fields to load at __init__ //TODO: use parameter
+        """
         self._client = client
         self._resource = self.RESOURCE
         self.id = id
@@ -22,20 +27,25 @@ class BaseResource(object):
 
         if self._resource not in self._client.fields:
             self._client.load_fields_for_resource(self._resource)
+
+        if preload is not None:
+            self._data_cache = preload
+
         self._init_done = True
 
     def __getattr__(self, name):
 
         attr = self._name_to_attr(name)
 
+        if name in self.field_names and attr not in self._data:
+            self._data_cache.clear()
+
         if attr in self._data:
             value = self._data[attr]
             ftype = self.field_config[attr]["type"]
             if ftype in self._client.FIELD_TO_CLASS:
-                print("working on %s" % value)
                 # if type is mappable, map it
                 resource_class = self._client.FIELD_TO_CLASS[ftype]
-                print("type is mappable: %s to %s" % (ftype, resource_class))
                 rid = value["value"]
                 res = resource_class(self._client, rid)
                 return res
@@ -52,7 +62,6 @@ class BaseResource(object):
         elif name in self.field_names:
             # custom field, let's set it
             attr = self._name_to_attr(name)
-
             # Set value only if value has actually changed
             if not str(self._data[attr]) == str(value):
                 self._data_cache[attr] = value
@@ -160,6 +169,28 @@ class Stage(BaseResource):
     HAS_CUSTOM_FIELDS = False
 
 
+class PipedriveResultSet(object):
+    """Generic handle for query and paginable result sets / filter
+    set from pipedrive"""
+
+    def __init__(self, client, data, page_size=None):
+        self._data = data
+        self._client = client
+        self._page_size = page_size
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        pass
+
+    def fetch_next_page(self):
+        pass
+
+    def has_more_item(self):
+        pass
+
+
 class PipedriveClient():
 
     FIELD_TO_CLASS = {
@@ -191,8 +222,25 @@ class PipedriveClient():
 
         return self._fetch_resource(resource, id)
 
-    def person_search(self, text, email=False):
-        pass
+    def query(self, klass, term, **kw):
+        """Perform a search for a pipedrive resource.
+        kwargs may be org_id, person_id, email.
+        Typically to find a person by it's email address:
+        query(Person, term="toto@toto.com", email=True)
+        """
+        res = klass.RESOURCE_SEGMENT
+        url = self._build_url(res, rid=None, command="find")
+        print(url)
+        params = {"term": term}
+        if kw:
+            for name, value in kw.iteritems():
+                params[name] = value
+        r = requests.get(url, params)
+        print( r.json())
+        data = r.json()["data"]
+        resultset = [klass(self, i["id"], preload=i) for i in data]
+        for i in resultset:
+            print(i.lead_score)
 
     def _fetch_resource(self, resource, rid=None):
         url = self._build_url(resource, rid)
@@ -252,9 +300,11 @@ class PipedriveClient():
         r.raise_for_status()
         return
 
-    def _build_url(self, resource, rid=None):
+    def _build_url(self, resource, rid=None, command=None):
         url = self.endpoint + "/" + resource
         if rid is not None:
-            url = url + "/" + str(rid)
+            url += "/" + str(rid)
+        if command is not None:
+            url += "/" + str(command)
         url = url + "?api_token=%s" % (self.api_token)
         return url
