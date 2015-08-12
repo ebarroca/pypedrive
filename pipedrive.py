@@ -43,7 +43,7 @@ class BaseResource(object):
         if attr in self._data:
             value = self._data[attr]
             ftype = self.field_config[attr]["type"]
-            if ftype in self._client.FIELD_TO_CLASS:
+            if ftype in self._client.FIELD_TO_CLASS and value is not None:
                 # if type is mappable, map it
                 resource_class = self._client.FIELD_TO_CLASS[ftype]
                 rid = value["value"]
