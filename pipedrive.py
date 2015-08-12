@@ -55,7 +55,6 @@ class BaseResource(object):
             raise AttributeError
 
     def __setattr__(self, name, value):
-        # print("Setting %s to %s" % (name, value))
         if "_init_done" not in self.__dict__ or name in self.__dict__:
             # use default setattr
             object.__setattr__(self, name, value)
@@ -81,6 +80,10 @@ class BaseResource(object):
 
     def save(self):
         "Save data back to pipedrive"
+
+        if not self.active:
+            raise Exception("Can't save resource %s: record deleted in Pipedrive" % self.id)
+
         if not self._dirty_fields:
             debug("No dirty fields for object %s" % self.id)
             return
@@ -103,6 +106,10 @@ class BaseResource(object):
             self._data_cache = data
 
         return self._data_cache
+
+    @property
+    def active(self):
+        return self._data["active_flag"]
 
     @property
     def field_keys(self):
