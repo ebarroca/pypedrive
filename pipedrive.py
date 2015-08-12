@@ -211,6 +211,7 @@ class PipedriveClient():
         self.api_token = api_token
         self.endpoint = API_ENDPOINT
         self.fields = {}
+        self._session = requests.Session()
 
     def get_contact(self, id):
         res = "persons"
@@ -242,8 +243,8 @@ class PipedriveClient():
         if kw:
             for name, value in kw.iteritems():
                 params[name] = value
-        r = requests.get(url, params)
-        print( r.json())
+        r = self._session.get(url, params)
+        print(r.json())
         data = r.json()["data"]
         resultset = [klass(self, i["id"], preload=i) for i in data]
         for i in resultset:
@@ -252,7 +253,7 @@ class PipedriveClient():
     def _fetch_resource(self, resource, rid=None):
         url = self._build_url(resource, rid)
         debug("Fetching resource %s (%s) at %s" % (rid, resource, url))
-        r = requests.get(url)
+        r = self._session.get(url)
         data = r.json()
 
         if "success" not in data:
@@ -302,7 +303,7 @@ class PipedriveClient():
         # XXX todo Validate resource/id/data types
         debug("Updating resource %s (%s) at %s" % (rid, resource, url))
         headers = {"Content-Type": "application/json"}
-        r = requests.put(url, data=json.dumps(data), headers=headers)
+        r = self._session.put(url, data=json.dumps(data), headers=headers)
         data = r.json()
         debug("Update status code: %s" % r.status_code)
         r.raise_for_status()
