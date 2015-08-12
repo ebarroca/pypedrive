@@ -52,7 +52,7 @@ class BaseResource(object):
             else:
                 return value
         else:
-            raise AttributeError
+            raise AttributeError("Can't get property: %s not found" % name)
 
     def __setattr__(self, name, value):
         if "_init_done" not in self.__dict__ or name in self.__dict__:
