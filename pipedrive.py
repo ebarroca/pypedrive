@@ -296,9 +296,11 @@ class PipedriveClient():
         debug("Updating resource %s (%s) at %s" % (rid, resource, url))
         headers = {"Content-Type": "application/json"}
         r = requests.put(url, data=json.dumps(data), headers=headers)
+        data = r.json()
         debug("Update status code: %s" % r.status_code)
         r.raise_for_status()
-        return
+        if "data" in data:
+            return data["data"]
 
     def _build_url(self, resource, rid=None, command=None):
         url = self.endpoint + "/" + resource
