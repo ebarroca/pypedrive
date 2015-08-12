@@ -5,7 +5,7 @@ import logging
 
 
 def debug(msg):
-    logger = logging.getLogger()
+    logger = logging.getLogger("pypedrive")
     logger.debug(msg)
 
 
