@@ -46,8 +46,12 @@ class BaseResource(object):
             if ftype in self._client.FIELD_TO_CLASS and value is not None:
                 # if type is mappable, map it
                 resource_class = self._client.FIELD_TO_CLASS[ftype]
-                rid = value["value"]
-                res = resource_class(self._client, rid)
+                if type(value) == int:
+                    rid = value
+                    res = resource_class(self._client, rid)
+                elif type(value) == dict:
+                    rid = value["value"]
+                    res = resource_class(self._client, rid, preload=value)
                 return res
             else:
                 return value
@@ -82,7 +86,8 @@ class BaseResource(object):
         "Save data back to pipedrive"
 
         if not self.active:
-            raise Exception("Can't save resource %s: record deleted in Pipedrive" % self.id)
+            raise Exception(
+                "Can't save resource %s: record deleted in Pipedrive" % self.id)
 
         if not self._dirty_fields:
             debug("No dirty fields for object %s" % self.id)
@@ -177,25 +182,63 @@ class Stage(BaseResource):
 
 
 class PipedriveResultSet(object):
+
     """Generic handle for query and paginable result sets / filter
     set from pipedrive"""
 
-    def __init__(self, client, data, page_size=None):
-        self._data = data
+    def __init__(self, klass, client, req):
+        self._data_cache = None
+        self._results = None
+        self._req = req
         self._client = client
-        self._page_size = page_size
+        self._klass = klass
+        self._results = []
+        self._current = 0
+        self._next_start = 0
+
+        self.fetch_next_page()
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        pass
+        if len(self._results) == 0 and not self.has_more:
+            raise StopIteration
+
+        if len(self._results) == 0 and self.has_more:
+            self.fetch_next_page()
+
+        return self._results.pop(0)
 
     def fetch_next_page(self):
-        pass
+        print("fetching next page: start: %s, url: %s" % (self._next_start,
+              self._req.url))
+        self._req.params["start"] = self._next_start
 
-    def has_more_item(self):
-        pass
+        r = self._client._session.send(self._req.prepare())
+        r.raise_for_status()
+        self.handle_data(r.json())
+
+    def handle_data(self, data):
+        if data["data"] is None:
+            raise Exception("No data available: %s" % self._data_cache)
+
+        self._data_cache = data["data"]
+        self._has_more = data["additional_data"][
+            "pagination"]["more_items_in_collection"]
+
+        if self.has_more:
+            self._next_start = data["additional_data"][
+                "pagination"]["next_start"]
+
+        l = [self._klass(self._client, i["id"], preload=i) for i
+             in self._data_cache]
+
+        self._results.extend(l)
+
+    @property
+    def has_more(self):
+        return self._has_more
 
 
 class PipedriveClient():
@@ -230,7 +273,7 @@ class PipedriveClient():
 
         return self._fetch_resource(resource, id)
 
-    def query(self, klass, term, **kw):
+    def search(self, klass, term, **kw):
         """Perform a search for a pipedrive resource.
         kwargs may be org_id, person_id, email.
         Typically to find a person by it's email address:
@@ -238,17 +281,24 @@ class PipedriveClient():
         """
         res = klass.RESOURCE_SEGMENT
         url = self._build_url(res, rid=None, command="find")
-        print(url)
         params = {"term": term}
         if kw:
-            for name, value in kw.iteritems():
+            for name, value in kw.items():
                 params[name] = value
-        r = self._session.get(url, params)
-        print(r.json())
-        data = r.json()["data"]
-        resultset = [klass(self, i["id"], preload=i) for i in data]
-        for i in resultset:
-            print(i.lead_score)
+        req = requests.Request("GET", url, params=params)
+
+        return PipedriveResultSet(klass, self, req)
+
+    def list_all(self, klass, **kw):
+        res = klass.RESOURCE_SEGMENT
+        url = self._build_url(res, rid=None, command=None)
+        params = {}
+        if kw:
+            for name, value in kw.items():
+                params[name] = value
+        req = requests.Request("GET", url, params=params)
+
+        return PipedriveResultSet(klass, self, req)
 
     def _fetch_resource(self, resource, rid=None):
         url = self._build_url(resource, rid)
@@ -316,5 +366,6 @@ class PipedriveClient():
             url += "/" + str(rid)
         if command is not None:
             url += "/" + str(command)
+
         url = url + "?api_token=%s" % (self.api_token)
         return url
