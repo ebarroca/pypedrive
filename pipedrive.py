@@ -5,10 +5,9 @@ import json
 API_ENDPOINT = "https://api.pipedrive.com/v1"
 
 
-class BaseResource(object):
+class SimpleResource(object):
     RESOURCE = "resources"
     RESOURCE_SEGMENT = RESOURCE + "s"
-    FIELD_SEGMENT = RESOURCE + "Fields"
     HAS_CUSTOM_FIELDS = False
 
     def __init__(self, client, id, preload=None):
@@ -25,13 +24,80 @@ class BaseResource(object):
         self._fields = None
         self._dirty_fields = set()
 
-        if self._resource not in self._client.fields:
+        if self.HAS_CUSTOM_FIELDS and \
+                self._resource not in self._client.fields:
             self._client.load_fields_for_resource(self._resource)
 
         if preload is not None:
             self._data_cache = preload
 
         self._init_done = True
+
+    def __getattr__(self, name):
+
+        attr = name
+
+        if attr not in self._data:
+            self._data_cache.clear()
+
+        if attr in self._data:
+            return self._data[attr]
+        else:
+            raise AttributeError("Can't get property: %s not found" % name)
+
+    def __setattr__(self, name, value):
+        if "_init_done" not in self.__dict__ or name in self.__dict__:
+            # use default setattr
+            object.__setattr__(self, name, value)
+        elif name in self._data_cache:
+            name = attr
+            if not str(self._data[attr]) == str(value):
+                self._data_cache[attr] = value
+                self._dirty_fields.add(name)
+        else:
+            raise AttributeError("Can't set propery: attribute %s \
+                                          not found." % (name))
+
+    def save(self):
+        "Save data back to pipedrive"
+
+        if not self.active:
+            raise Exception(
+                "Can't save resource %s: record deleted in Pipedrive" % self.id)
+
+        if not self._dirty_fields:
+            debug("No dirty fields for object %s" % self.id)
+            return
+        debug("Saving dirty fields: %s" % self._dirty_fields)
+        data_for_update = {}
+        for f in self._dirty_fields:
+            attr = self._name_to_attr(f)
+            data_for_update[attr] = self._data[attr]
+        self._client.update_resource(self.RESOURCE_SEGMENT, self.id,
+                                     data_for_update)
+        self._dirty_fields.clear()
+        self._data.clear()
+
+    @property
+    def _data(self):
+        if not self._data_cache:
+            (r, data) = self._client._fetch_resource_by_id(
+                self.RESOURCE_SEGMENT, self.id)
+            self.url = r.url
+            self._data_cache = data
+
+        return self._data_cache
+
+    @property
+    def active(self):
+        return self._data["active_flag"]
+
+
+class BaseResource(SimpleResource):
+    RESOURCE = "resources"
+    RESOURCE_SEGMENT = RESOURCE + "s"
+    FIELD_SEGMENT = RESOURCE + "Fields"
+    HAS_CUSTOM_FIELDS = True
 
     def __getattr__(self, name):
 
@@ -82,40 +148,6 @@ class BaseResource(object):
         return attr
         # Check if test on HAS_CUSTOM_FIELDS is required
 
-    def save(self):
-        "Save data back to pipedrive"
-
-        if not self.active:
-            raise Exception(
-                "Can't save resource %s: record deleted in Pipedrive" % self.id)
-
-        if not self._dirty_fields:
-            debug("No dirty fields for object %s" % self.id)
-            return
-        debug("Saving dirty fields: %s" % self._dirty_fields)
-        data_for_update = {}
-        for f in self._dirty_fields:
-            attr = self._name_to_attr(f)
-            data_for_update[attr] = self._data[attr]
-        self._client.update_resource(self.RESOURCE_SEGMENT, self.id,
-                                     data_for_update)
-        self._dirty_fields.clear()
-        self._data.clear()
-
-    @property
-    def _data(self):
-        if not self._data_cache:
-            (r, data) = self._client._fetch_resource_by_id(
-                self.RESOURCE_SEGMENT, self.id)
-            self.url = r.url
-            self._data_cache = data
-
-        return self._data_cache
-
-    @property
-    def active(self):
-        return self._data["active_flag"]
-
     @property
     def field_keys(self):
         if not self.HAS_CUSTOM_FIELDS:
@@ -149,6 +181,23 @@ class Deal(BaseResource):
     HAS_CUSTOM_FIELDS = True
 
 
+class Pipeline(SimpleResource):
+    RESOURCE = "pipeline"
+    RESOURCE_SEGMENT = RESOURCE + "s"
+    HAS_CUSTOM_FIELDS = False
+
+    def deals(self, **kw):
+        url = self._client._build_url(self.RESOURCE_SEGMENT, rid=self.id,
+                                      command="deals")
+        params = {}
+        if kw:
+            for name, value in kw.items():
+                params[name] = value
+        req = requests.Request("GET", url, params=params)
+
+        return PipedriveResultSet(Deal, self._client, req)
+
+
 class Organization(BaseResource):
     RESOURCE = "organization"
     RESOURCE_SEGMENT = RESOURCE + "s"
@@ -169,7 +218,7 @@ class User(BaseResource):
     HAS_CUSTOM_FIELDS = False
 
 
-class Acivity(BaseResource):
+class Acivity(SimpleResource):
     RESOURCE = "activity"
     RESOURCE_SEGMENT = "activities"
     HAS_CUSTOM_FIELDS = False
@@ -212,7 +261,7 @@ class PipedriveResultSet(object):
 
     def fetch_next_page(self):
         print("fetching next page: start: %s, url: %s" % (self._next_start,
-              self._req.url))
+                                                          self._req.url))
         self._req.params["start"] = self._next_start
 
         r = self._client._session.send(self._req.prepare())
@@ -247,7 +296,8 @@ class PipedriveClient():
         "people": Person,
         "org": Organization,
         "stage": Stage,
-        "product": Product
+        "product": Product,
+        "pipeline": Pipeline
     }
 
     def __init__(self, api_token):
@@ -321,6 +371,7 @@ class PipedriveClient():
     def load_fields_for_resource(self, resource):
 
         debug("Loading fields for resource %s" % resource)
+        print("Loading fields for resource %s" % resource)
         fields = {}
         key_to_attr = {}
         attr_to_key = {}
