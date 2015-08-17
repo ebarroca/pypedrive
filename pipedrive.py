@@ -45,8 +45,14 @@ class PipedriveResultSet(object):
         self.handle_data(r.json())
 
     def handle_data(self, data):
+
+        if not data["success"]:
+            raise Exception("Issue fetching data at %s: %s" %
+                            (self._req.url, data))
+
         if data["data"] is None:
-            raise Exception("No data available: %s" % self._data_cache)
+            print("No data available: %s" % data)
+            return
 
         self._data_cache = data["data"]
         self._has_more = data["additional_data"][
@@ -73,7 +79,8 @@ class PipedriveClient():
         "org": Organization,
         "stage": Stage,
         "product": Product,
-        "pipeline": Pipeline
+        "pipeline": Pipeline,
+        "participant": Person
     }
 
     def __init__(self, api_token):

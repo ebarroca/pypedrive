@@ -1,5 +1,6 @@
 import requests
 from .util import *
+from .pipedrive import *
 
 
 def make_linked_methods(parent, o):
@@ -15,7 +16,7 @@ def make_linked_methods(parent, o):
     def linked_objects(**kw):
         # Define dynamic method
         if kw:
-            return parent.list_linked_objects(o, kw)
+            return parent.list_linked_objects(o, **kw)
         else:
             return parent.list_linked_objects(o)
 
@@ -97,6 +98,7 @@ class SimpleResource(object):
         if kw:
             for name, value in kw.items():
                 params[name] = value
+
         req = requests.Request("GET", url, params=params)
 
         return PipedriveResultSet(klass, self._client, req)
