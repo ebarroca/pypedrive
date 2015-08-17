@@ -5,10 +5,26 @@ import json
 API_ENDPOINT = "https://api.pipedrive.com/v1"
 
 
+def make_linked_methods(parent, o):
+    segment = o.RESOURCE_SEGMENT
+
+    def linked_objects(**kw):
+        # Define dynamic method
+        if kw:
+            return parent.list_linked_objects(o, kw)
+        else:
+            return parent.list_linked_objects(o)
+
+    linked_objects.__name__ = segment
+    linked_objects.__doc__ = "Fetch %s linked to this %s" % (
+        segment, parent.RESOURCE)
+
+    return linked_objects
+
+
 class SimpleResource(object):
-    RESOURCE = "resources"
-    RESOURCE_SEGMENT = RESOURCE + "s"
     HAS_CUSTOM_FIELDS = False
+    LINKED_OBJECTS = None
 
     def __init__(self, client, id, preload=None):
         """
@@ -24,9 +40,16 @@ class SimpleResource(object):
         self._fields = None
         self._dirty_fields = set()
 
+        # Load fields configuration if resource has custom fields
         if self.HAS_CUSTOM_FIELDS and \
                 self._resource not in self._client.fields:
             self._client.load_fields_for_resource(self._resource)
+
+        # Generate methods to fetch linekd objects
+        if self.LINKED_OBJECTS is not None:
+            for o in self.LINKED_OBJECTS:
+                m = make_linked_methods(self, o)
+                setattr(self, o.RESOURCE_SEGMENT, m)
 
         if preload is not None:
             self._data_cache = preload
@@ -57,6 +80,18 @@ class SimpleResource(object):
         else:
             raise AttributeError("Can't set propery: attribute %s \
                                           not found." % (name))
+
+    def list_linked_objects(self, klass, **kw):
+        command = klass.RESOURCE_SEGMENT
+        url = self._client._build_url(self.RESOURCE_SEGMENT, rid=self.id,
+                                      command=command)
+        params = {}
+        if kw:
+            for name, value in kw.items():
+                params[name] = value
+        req = requests.Request("GET", url, params=params)
+
+        return PipedriveResultSet(klass, self._client, req)
 
     def save(self):
         "Save data back to pipedrive"
@@ -167,42 +202,52 @@ class CustomResource(SimpleResource):
         return self._client.fields[self._resource]["config"]
 
 
-class Person(CustomResource):
-    RESOURCE = "person"
-    RESOURCE_SEGMENT = RESOURCE + "s"
-    FIELD_SEGMENT = RESOURCE + "Fields"
-    HAS_CUSTOM_FIELDS = True
-
-
-class Deal(CustomResource):
-    RESOURCE = "deal"
-    RESOURCE_SEGMENT = RESOURCE + "s"
-    FIELD_SEGMENT = RESOURCE + "Fields"
-    HAS_CUSTOM_FIELDS = True
-
-
-class Pipeline(SimpleResource):
-    RESOURCE = "pipeline"
+class User(SimpleResource):
+    RESOURCE = "user"
     RESOURCE_SEGMENT = RESOURCE + "s"
     HAS_CUSTOM_FIELDS = False
 
-    def deals(self, **kw):
-        url = self._client._build_url(self.RESOURCE_SEGMENT, rid=self.id,
-                                      command="deals")
-        params = {}
-        if kw:
-            for name, value in kw.items():
-                params[name] = value
-        req = requests.Request("GET", url, params=params)
 
-        return PipedriveResultSet(Deal, self._client, req)
+class Activity(SimpleResource):
+    RESOURCE = "activity"
+    RESOURCE_SEGMENT = "activities"
+    HAS_CUSTOM_FIELDS = False
 
 
-class Organization(CustomResource):
-    RESOURCE = "organization"
-    RESOURCE_SEGMENT = RESOURCE + "s"
-    FIELD_SEGMENT = RESOURCE + "Fields"
-    HAS_CUSTOM_FIELDS = True
+class EmailMessage(SimpleResource):
+    RESOURCE = "emailMessage"
+    RESOURCE_SEGMENT = "emailMessages"
+    HAS_CUSTOM_FIELDS = False
+
+
+class EmailThread(SimpleResource):
+    RESOURCE = "emailThread"
+    RESOURCE_SEGMENT = "emailThreads"
+    HAS_CUSTOM_FIELDS = False
+
+
+class File(SimpleResource):
+    RESOURCE = "file"
+    RESOURCE_SEGMENT = "files"
+    HAS_CUSTOM_FIELDS = False
+
+
+class Filter(SimpleResource):
+    RESOURCE = "filter"
+    RESOURCE_SEGMENT = "filters"
+    HAS_CUSTOM_FIELDS = False
+
+
+class Note(SimpleResource):
+    RESOURCE = "note"
+    RESOURCE_SEGMENT = "notes"
+    HAS_CUSTOM_FIELDS = False
+
+
+class Goal(SimpleResource):
+    RESOURCE = "goal"
+    RESOURCE_SEGMENT = "goals"
+    HAS_CUSTOM_FIELDS = False
 
 
 class Product(CustomResource):
@@ -210,24 +255,45 @@ class Product(CustomResource):
     RESOURCE_SEGMENT = RESOURCE + "s"
     HAS_CUSTOM_FIELDS = True
     FIELD_SEGMENT = RESOURCE + "Fields"
+    LINKED_OBJECTS = [File]
 
 
-class User(CustomResource):
-    RESOURCE = "user"
+class Deal(CustomResource):
+    RESOURCE = "deal"
     RESOURCE_SEGMENT = RESOURCE + "s"
-    HAS_CUSTOM_FIELDS = False
+    FIELD_SEGMENT = RESOURCE + "Fields"
+    HAS_CUSTOM_FIELDS = True
+    LINKED_OBJECTS = [Product, File]
 
 
-class Acivity(SimpleResource):
-    RESOURCE = "activity"
-    RESOURCE_SEGMENT = "activities"
-    HAS_CUSTOM_FIELDS = False
-
-
-class Stage(CustomResource):
+class Stage(SimpleResource):
     RESOURCE = "stage"
     RESOURCE_SEGMENT = RESOURCE + "s"
     HAS_CUSTOM_FIELDS = False
+    LINKED_OBJECTS = [Deal]
+
+
+class Person(CustomResource):
+    RESOURCE = "person"
+    RESOURCE_SEGMENT = RESOURCE + "s"
+    FIELD_SEGMENT = RESOURCE + "Fields"
+    HAS_CUSTOM_FIELDS = True
+    LINKED_OBJECTS = [Deal, Activity, File, Product]
+
+
+class Pipeline(SimpleResource):
+    RESOURCE = "pipeline"
+    RESOURCE_SEGMENT = RESOURCE + "s"
+    HAS_CUSTOM_FIELDS = False
+    LINKED_OBJECTS = [Deal]
+
+
+class Organization(CustomResource):
+    RESOURCE = "organization"
+    RESOURCE_SEGMENT = RESOURCE + "s"
+    FIELD_SEGMENT = RESOURCE + "Fields"
+    HAS_CUSTOM_FIELDS = True
+    LINKED_OBJECTS = [File, Activity, Deal]
 
 
 class PipedriveResultSet(object):
