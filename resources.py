@@ -27,6 +27,10 @@ def make_linked_methods(parent, o):
 
 
 class SimpleResource(object):
+    """
+    Base resource class, for resources without custom fields.
+    Support basic operations for resources: get, save
+    """
     HAS_CUSTOM_FIELDS = False
     LINKED_OBJECTS = None
 
@@ -133,6 +137,12 @@ class SimpleResource(object):
 
 
 class CustomResource(SimpleResource):
+    """
+    Base class for resources with custom fields.
+    Handle the custom fields logic, in addition to SimpleResource features.
+    Enable to access custom fields with a natural name instead of 40 char hash.
+    """
+
     RESOURCE = "resources"
     RESOURCE_SEGMENT = RESOURCE + "s"
     FIELD_SEGMENT = RESOURCE + "Fields"
