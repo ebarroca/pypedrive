@@ -36,7 +36,7 @@ class PipedriveResultSet(object):
         return self._results.pop(0)
 
     def fetch_next_page(self):
-        print("fetching next page: start: %s, url: %s" % (self._next_start,
+        debug("fetching next page: start: %s, url: %s" % (self._next_start,
                                                           self._req.url))
         self._req.params["start"] = self._next_start
 
@@ -51,7 +51,7 @@ class PipedriveResultSet(object):
                             (self._req.url, data))
 
         if data["data"] is None:
-            print("No data available: %s" % data)
+            debug("No data available: %s" % data)
             return
 
         self._data_cache = data["data"]
@@ -154,7 +154,6 @@ class PipedriveClient():
     def load_fields_for_resource(self, resource):
 
         debug("Loading fields for resource %s" % resource)
-        print("Loading fields for resource %s" % resource)
         fields = {}
         key_to_attr = {}
         attr_to_key = {}
