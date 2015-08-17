@@ -93,7 +93,7 @@ class SimpleResource(object):
         return self._data["active_flag"]
 
 
-class BaseResource(SimpleResource):
+class CustomResource(SimpleResource):
     RESOURCE = "resources"
     RESOURCE_SEGMENT = RESOURCE + "s"
     FIELD_SEGMENT = RESOURCE + "Fields"
@@ -167,14 +167,14 @@ class BaseResource(SimpleResource):
         return self._client.fields[self._resource]["config"]
 
 
-class Person(BaseResource):
+class Person(CustomResource):
     RESOURCE = "person"
     RESOURCE_SEGMENT = RESOURCE + "s"
     FIELD_SEGMENT = RESOURCE + "Fields"
     HAS_CUSTOM_FIELDS = True
 
 
-class Deal(BaseResource):
+class Deal(CustomResource):
     RESOURCE = "deal"
     RESOURCE_SEGMENT = RESOURCE + "s"
     FIELD_SEGMENT = RESOURCE + "Fields"
@@ -198,21 +198,21 @@ class Pipeline(SimpleResource):
         return PipedriveResultSet(Deal, self._client, req)
 
 
-class Organization(BaseResource):
+class Organization(CustomResource):
     RESOURCE = "organization"
     RESOURCE_SEGMENT = RESOURCE + "s"
     FIELD_SEGMENT = RESOURCE + "Fields"
     HAS_CUSTOM_FIELDS = True
 
 
-class Product(BaseResource):
+class Product(CustomResource):
     RESOURCE = "product"
     RESOURCE_SEGMENT = RESOURCE + "s"
     HAS_CUSTOM_FIELDS = True
     FIELD_SEGMENT = RESOURCE + "Fields"
 
 
-class User(BaseResource):
+class User(CustomResource):
     RESOURCE = "user"
     RESOURCE_SEGMENT = RESOURCE + "s"
     HAS_CUSTOM_FIELDS = False
@@ -224,7 +224,7 @@ class Acivity(SimpleResource):
     HAS_CUSTOM_FIELDS = False
 
 
-class Stage(BaseResource):
+class Stage(CustomResource):
     RESOURCE = "stage"
     RESOURCE_SEGMENT = RESOURCE + "s"
     HAS_CUSTOM_FIELDS = False
