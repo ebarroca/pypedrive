@@ -35,6 +35,9 @@ class PipedriveResultSet(object):
 
         return self._results.pop(0)
 
+    #Python 2 compatibility
+    next = __next__
+
     def fetch_next_page(self):
         debug("fetching next page: start: %s, url: %s" % (self._next_start,
                                                           self._req.url))
