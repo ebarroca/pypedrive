@@ -327,4 +327,4 @@ class Organization(CustomResource):
     RESOURCE_SEGMENT = RESOURCE + "s"
     FIELD_SEGMENT = RESOURCE + "Fields"
     HAS_CUSTOM_FIELDS = True
-    LINKED_OBJECTS = [File, Activity, Deal]
+    LINKED_OBJECTS = [File, Activity, Deal, Person]
