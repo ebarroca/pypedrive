@@ -196,6 +196,17 @@ class PipedriveClient():
         if "data" in data:
             return data["data"]
 
+    def merge_resource(self, resource, rid, target_id):
+        """merge object id into target_id"""
+        url = self._build_url(resource, rid, "merge")
+        headers = {"Content-Type": "application/json"}
+        data = {"id": rid, "merge_with_id": target_id}
+        r = self._session.put(url, data=json.dumps(data), headers=headers)
+        debug("Merge status code: %s" % r.status_code)
+        r.raise_for_status()
+        if "data" in data:
+            return data["data"]
+
     def _build_url(self, resource, rid=None, command=None):
         url = self.endpoint + "/" + resource
         if rid is not None:

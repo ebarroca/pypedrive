@@ -132,6 +132,15 @@ class SimpleResource(object):
         self._dirty_fields.clear()
         self._data.clear()
 
+    def merge(self, target_id):
+        """merge this object with target"""
+        if not self.SUPPORT_MERGE:
+            raise Exception("Object doesn't support merge")
+
+
+
+
+
     @property
     def _data(self):
         if not self._data_cache:
