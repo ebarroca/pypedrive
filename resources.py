@@ -90,6 +90,15 @@ class SimpleResource(object):
             raise AttributeError("Can't set propery: attribute %s \
                                           not found." % (name))
 
+    def __str__(self):
+        return str(self.id)
+
+    def __eq__(self, other):
+        return (isinstance(other, self.__class__) and self.id == other.id)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def list_linked_objects(self, klass, **kw):
         command = klass.RESOURCE_SEGMENT
         url = self._client._build_url(self.RESOURCE_SEGMENT, rid=self.id,
