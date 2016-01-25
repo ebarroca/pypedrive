@@ -1,7 +1,5 @@
 import requests
-from .util import *
-from .pipedrive import *
-
+from .util import debug
 
 def make_linked_methods(parent, o):
     """
@@ -25,6 +23,76 @@ def make_linked_methods(parent, o):
         segment, parent.RESOURCE)
 
     return linked_objects
+
+
+class PipedriveResultSet():
+
+    """Generic handle for query and paginable result sets / filter
+    set from pipedrive"""
+
+    def __init__(self, klass, client, req):
+        self._data_cache = None
+        self._results = None
+        self._req = req
+        self._client = client
+        self._klass = klass
+        self._results = []
+        self._current = 0
+        self._next_start = 0
+        self._has_more = False
+
+        self.fetch_next_page()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if len(self._results) == 0 and not self.has_more:
+            raise StopIteration
+
+        if len(self._results) == 0 and self.has_more:
+            self.fetch_next_page()
+
+        return self._results.pop(0)
+
+    #Python 2 compatibility
+    next = __next__
+
+    def fetch_next_page(self):
+        debug("fetching next page: start: %s, url: %s" % (self._next_start,
+                                                          self._req.url))
+        self._req.params["start"] = self._next_start
+
+        r = self._client._session.send(self._req.prepare())
+        r.raise_for_status()
+        self.handle_data(r.json())
+
+    def handle_data(self, data):
+
+        if not data["success"]:
+            raise Exception("Issue fetching data at %s: %s" %
+                            (self._req.url, data))
+
+        if data["data"] is None:
+            debug("No data available: %s" % data)
+            return
+
+        self._data_cache = data["data"]
+        self._has_more = data["additional_data"][
+            "pagination"]["more_items_in_collection"]
+
+        if self.has_more:
+            self._next_start = data["additional_data"][
+                "pagination"]["next_start"]
+
+        l = [self._klass(self._client, i["id"], preload=i) for i
+             in self._data_cache]
+
+        self._results.extend(l)
+
+    @property
+    def has_more(self):
+        return self._has_more
 
 
 class SimpleResource(object):

@@ -8,3 +8,8 @@ except ImportError:
             pass
 
 logging.getLogger(__name__).addHandler(NullHandler())
+
+
+__all__ = ["pipedrive", "resources"]
+
+from .pipedrive import PipedriveResultSet
